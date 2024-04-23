@@ -1,5 +1,4 @@
-use crate::task::suspend_current_and_run_next;
-use crate::task::exit_current_and_run_next;
+use crate::task::{change_program_brk, exit_current_and_run_next, suspend_current_and_run_next};
 use crate::timer::get_time_ms;
 #[repr(C)]
 #[derive(Debug)]
@@ -21,4 +20,12 @@ pub fn sys_yield() -> isize {
 
 pub fn sys_get_time() -> isize {
     get_time_ms() as isize
+}
+
+pub fn sys_sbrk(size: i32) -> isize {
+    if let Some(old_brk) = change_program_brk(size) {
+        old_brk as isize
+    } else {
+        -1
+    }
 }

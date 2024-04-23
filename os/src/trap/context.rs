@@ -8,22 +8,36 @@ pub struct TrapContext {
     pub sstatus: Sstatus,
     /// CSR sepc(pc中的内容)
     pub sepc: usize,
+    //内核页表的起始物理地址
+    pub kernel_satp: usize,
+    //内核栈栈顶的虚拟地址
+    pub kernel_sp: usize,
+    //陷入处理入口的虚拟地址
+    pub trap_handler: usize,
 }
 
 //在 RISC-V 架构中，唯一一种能够使得 CPU 特权级下降的方法就是执行 Trap 返回的特权指令，如 sret 、mret
 impl TrapContext {
-    pub fn set_sp(&mut self, sp: usize) {
-        self.x[2] = sp;
-    }
-    pub fn app_init_context(entry: usize, sp: usize) -> Self {
-        let mut sstatus = sstatus::read(); // CSR sstatus
-        sstatus.set_spp(SPP::User); //特权级设置user
+    pub fn set_sp(&mut self, sp: usize) { self.x[2] = sp; }
+    pub fn app_init_context(
+        entry: usize,
+        sp: usize,
+        kernel_satp: usize,
+        kernel_sp: usize,
+        trap_handler: usize,
+    ) -> Self {
+        let mut sstatus = sstatus::read();
+        sstatus.set_spp(SPP::User);
         let mut cx = Self {
             x: [0; 32],
             sstatus,
-            sepc: entry, //把pc修改为应用程序的入口
+            sepc: entry,
+            kernel_satp,
+            kernel_sp,
+            trap_handler,
         };
-        cx.set_sp(sp); //获取app的用户栈指针
-        cx 
+        cx.set_sp(sp);
+        cx
     }
+    
 }
