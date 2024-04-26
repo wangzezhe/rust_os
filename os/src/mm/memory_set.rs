@@ -1,3 +1,4 @@
+//虚拟地址空间需要有一个数据结构管理
 use super::{frame_alloc, FrameTracker};
 use super::{PTEFlags, PageTable, PageTableEntry};
 use super::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
@@ -23,7 +24,7 @@ extern "C" {
     fn ekernel();
     fn strampoline();
 }
-
+//内核的页表和虚拟空间的建立
 lazy_static! {
     pub static ref KERNEL_SPACE: Arc<UPSafeCell<MemorySet>> =
         Arc::new(unsafe { UPSafeCell::new(MemorySet::new_kernel()) });
@@ -54,6 +55,17 @@ impl MemorySet {
             MapArea::new(start_va, end_va, MapType::Framed, permission),
             None,
         );
+    }
+    pub fn remove_area_with_start_vpn(&mut self,start_vpn:VirtPageNum){
+        if let Some((idx,area)) = self
+            .areas
+            .iter_mut()
+            .enumerate()
+            .find(|(_,area)| area.vpn_range.get_start() == start_vpn)
+            {
+                area.unmap(&mut self.page_table);
+                self.areas.remove(idx);
+            }
     }
     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
@@ -143,6 +155,7 @@ impl MemorySet {
         }
         memory_set
     }
+    //解析 ELF 来创建一个应用地址空间
      pub fn from_elf(elf_data: &[u8]) -> (Self, usize, usize) {
         let mut memory_set = Self::new_bare();
         memory_set.map_trampoline();
@@ -213,6 +226,22 @@ impl MemorySet {
             elf.header.pt2.entry_point() as usize,
         )
     }
+    pub fn from_existed_user(user_space:&Self) -> Self {
+        let mut memory_set = Self::new_bare();
+        memory_set.map_trampoline();
+        for area in user_space.areas.iter()  {
+            let new_area = MapArea::from_another(area);
+            memory_set.push(new_area,None);
+            for vpn in area.vpn_range {
+                let src_ppn = user_space.translate(vpn).unwrap().ppn();
+                let dst_ppn = memory_set.translate(vpn).unwrap().ppn();
+                dst_ppn
+                    .get_bytes_array()
+                    .copy_from_slice(src_ppn.get_bytes_array());
+            }
+        }
+        memory_set
+    }
     pub fn activate(&self) {
         let satp = self.page_table.token();
         unsafe {
@@ -223,32 +252,10 @@ impl MemorySet {
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
         self.page_table.translate(vpn)
     }
-    #[allow(unused)]
-    pub fn shrink_to(&mut self, start: VirtAddr, new_end: VirtAddr) -> bool {
-        if let Some(area) = self
-            .areas
-            .iter_mut()
-            .find(|area| area.vpn_range.get_start() == start.floor())
-        {
-            area.shrink_to(&mut self.page_table, new_end.ceil());
-            true
-        } else {
-            false
-        }
+    pub fn recycle_data_pages(&mut self) {
+        self.areas.clear();
     }
-    #[allow(unused)]
-    pub fn append_to(&mut self, start: VirtAddr, new_end: VirtAddr) -> bool {
-        if let Some(area) = self
-            .areas
-            .iter_mut()
-            .find(|area| area.vpn_range.get_start() == start.floor())
-        {
-            area.append_to(&mut self.page_table, new_end.ceil());
-            true
-        } else {
-            false
-        }
-    }
+    
 }
 
 pub struct MapArea {
@@ -272,6 +279,14 @@ impl MapArea {
             data_frames: BTreeMap::new(),
             map_type,
             map_perm,
+        }
+    }
+    pub fn from_another(another:&Self) -> Self{
+        Self{
+            vpn_range:VPNRange::new(another.vpn_range.get_start(),another.vpn_range.get_end()),
+            data_frames:BTreeMap::new(),
+            map_type:another.map_type,
+            map_perm:another.map_perm,
         }
     }
     pub fn map_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {

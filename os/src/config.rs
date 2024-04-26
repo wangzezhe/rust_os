@@ -13,6 +13,7 @@ pub fn kernel_stack_position(app_id: usize) -> (usize, usize) {
 }
 
 pub const CLOCK_FREQ: usize = 12500000;
+//整块物理内存的终止物理地址（可用内存大小实际为8MB，原因：与开发板保持一致）
 pub const MEMORY_END: usize = 0x8800_0000;
 
 pub const MMIO: &[(usize, usize)] = &[

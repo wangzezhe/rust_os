@@ -1,1 +1,0 @@
-/home/wzz/rust_os/user/target/riscv64gc-unknown-none-elf/release/01store_fault: /home/wzz/rust_os/user/src/bin/01store_fault.rs /home/wzz/rust_os/user/src/console.rs /home/wzz/rust_os/user/src/lang_items.rs /home/wzz/rust_os/user/src/lib.rs /home/wzz/rust_os/user/src/syscall.rs

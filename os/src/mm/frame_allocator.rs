@@ -1,3 +1,4 @@
+// os内核能够以物理页帧为单位分配和回收物理内存
 use super::{PhysAddr, PhysPageNum};
 use alloc::vec::Vec;
 use crate::sync::UPSafeCell;
@@ -31,16 +32,18 @@ impl Drop for FrameTracker {
     }
 }
 
+//物理页帧管理器需要提供的功能，以物理页号为单位进行分配和回收
 trait FrameAllocator {
     fn new() -> Self;
-    fn alloc(&mut self) -> Option<PhysPageNum>;
-    fn dealloc(&mut self, ppn: PhysPageNum);
+    fn alloc(&mut self) -> Option<PhysPageNum>; //分配
+    fn dealloc(&mut self, ppn: PhysPageNum); //释放
 }
 
+//栈式物理页帧管理策略
 pub struct StackFrameAllocator {
-    current: usize,
-    end: usize,
-    recycled: Vec<usize>,
+    current: usize, //空闲内存的起始物理页号
+    end: usize, //结束物理页号
+    recycled: Vec<usize>, //后入先出的方式保存被回收的物理页号
 }
 
 impl StackFrameAllocator {
@@ -49,7 +52,9 @@ impl StackFrameAllocator {
         self.end = r.0;
     }
 }
+
 impl FrameAllocator for StackFrameAllocator {
+    //初始化
     fn new() -> Self {
         Self {
             current: 0,
@@ -57,10 +62,12 @@ impl FrameAllocator for StackFrameAllocator {
             recycled: Vec::new(),
         }
     }
+    //栈 recycled 内有没有之前回收的物理页号，如果有的话直接弹出栈顶并返回
     fn alloc(&mut self) -> Option<PhysPageNum> {
         if let Some(ppn) = self.recycled.pop() {
             Some(ppn.into())
         } else {
+            //从之前从未分配过的物理页号区间 [ current , end ) 上进行分配
             if self.current == self.end {
                 None
             } else {
@@ -69,16 +76,16 @@ impl FrameAllocator for StackFrameAllocator {
             }
         }
     }
+    //回收
     fn dealloc(&mut self, ppn: PhysPageNum) {
         let ppn = ppn.0;
-        // validity check
+        //判断待回收的页面是否合法
         if ppn >= self.current || self.recycled
             .iter()
             .find(|&v| {*v == ppn})
             .is_some() {
             panic!("Frame ppn={:#x} has not been allocated!", ppn);
         }
-        // recycle
         self.recycled.push(ppn);
     }
 }
@@ -86,11 +93,13 @@ impl FrameAllocator for StackFrameAllocator {
 type FrameAllocatorImpl = StackFrameAllocator;
 
 lazy_static! {
+    //使用 UPSafeCell<T> 来包裹栈式物理页帧分配器。每次对该分配器进行操作之前，我们都需要先通过 FRAME_ALLOCATOR.exclusive_access() 拿到分配器的可变借用。
     pub static ref FRAME_ALLOCATOR: UPSafeCell<FrameAllocatorImpl> = unsafe {
         UPSafeCell::new(FrameAllocatorImpl::new())
     };
 }
 
+//物理帧的分配不占用内核内存区
 pub fn init_frame_allocator() {
     extern "C" {
         fn ekernel();
