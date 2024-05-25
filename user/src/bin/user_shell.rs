@@ -16,12 +16,14 @@ use alloc::string::String;
 use user_lib::console::getchar;
 use user_lib::{exec, fork, waitpid};
 
+//捕获我们的输入并进行解析处理
 #[no_mangle]
 pub fn main() -> i32 {
     println!("Rust user shell");
     //维护当前用户输入的命令内容
     let mut line: String = String::new();
     print!(">> ");
+    //每次都是调用 getchar 获取一个用户输入的字符，并根据它相应进行一些动作
     loop {
         let c = getchar();
         match c {

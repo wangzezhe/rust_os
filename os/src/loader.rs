@@ -2,12 +2,16 @@
 //获取一个应用的 ELF 执行文件数据
 use alloc::vec::Vec;
 use lazy_static::*;
+
+// 获取链接到内核内的应用的数目
 pub fn get_num_app() -> usize {
     extern "C" {
         fn _num_app();
     }
     unsafe { (_num_app as usize as *const usize).read_volatile() }
 }
+
+//根据传入的应用编号取出对应应用的 ELF 格式可执行文件数据。它们和之前一样仍是基于 build.rs 生成的 link_app.S 给出的符号来确定其位置，并实际放在内核的数据段中
 pub fn get_app_data(app_id: usize) -> &'static [u8] {
     extern "C" {
         fn _num_app();
@@ -23,7 +27,10 @@ pub fn get_app_data(app_id: usize) -> &'static [u8] {
         )
     }
 }
+
+
 //exec系统调用的先期准备
+//分析 link_app.S 中的内容，并用一个全局可见的 只读 向量 APP_NAMES 来按照顺序将所有应用的名字保存在内存中
 lazy_static! {
     //只读向量APP_NAMES按照顺序将所有应用的名字保存在内存中
     static ref APP_NAMES: Vec<&'static str> = {
@@ -60,6 +67,7 @@ pub fn get_app_data_by_name(name: &str) -> Option<&'static [u8]> {
         .find(|&i| APP_NAMES[i] == name)
         .map(get_app_data)
 }
+
 //打印出所有可用的应用的名字。
 pub fn list_apps() {
     println!("/**** APPS ****");

@@ -11,6 +11,7 @@ SECTIONS
     .text : {
         *(.text.entry)
         . = ALIGN(4K);
+        /*将 trap.S 中的整段汇编代码放置在 .text.trampoline 段*/
         strampoline = .;
         *(.text.trampoline);
         . = ALIGN(4K);

@@ -16,6 +16,7 @@ impl TaskContext {
             s: [0; 12],
         }
     }
+    //将会跳转到 trap_return 并返回用户态开始该应用的启动执行
     pub fn goto_trap_return(kstack_ptr: usize) -> Self {
         Self {
             ra: trap_return as usize,

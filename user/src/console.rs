@@ -32,6 +32,7 @@ macro_rules! println {
     }
 }
 
+//用户库中将其进一步封装成每次能够从 标准输入 中获取一个字符
 pub fn getchar() -> u8 {
     let mut c = [0u8; 1];
     read(STDIN, &mut c);

@@ -19,6 +19,7 @@ pub struct TrapContext {
 //在 RISC-V 架构中，唯一一种能够使得 CPU 特权级下降的方法就是执行 Trap 返回的特权指令，如 sret 、mret
 impl TrapContext {
     pub fn set_sp(&mut self, sp: usize) { self.x[2] = sp; }
+    //补充上让应用在 __alltraps 能够顺利进入到内核地址空间并跳转到 trap handler 入口点的相关信息
     pub fn app_init_context(
         entry: usize,
         sp: usize,
